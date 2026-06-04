@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { tasks, type Task, type TaskStatus } from './data';
+import { tasks as initialTasks, type Task, type TaskStatus } from './data';
 import Icon from '@/components/ui/icon';
+import TaskModal from './TaskModal';
+import AddTaskModal from './AddTaskModal';
 
 const priorityConfig = {
   high: { label: 'Высокий', class: 'bg-red-50 text-red-600 border-red-200' },
@@ -22,13 +24,25 @@ const columns: { key: TaskStatus; label: string; color: string }[] = [
 ];
 
 export default function TasksPage() {
-  const [taskList, setTaskList] = useState<Task[]>(tasks);
+  const [taskList, setTaskList] = useState<Task[]>(initialTasks);
   const [filter, setFilter] = useState<'all' | 'my'>('all');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addStatus, setAddStatus] = useState<TaskStatus>('todo');
 
   const byStatus = (s: TaskStatus) => taskList.filter(t => t.status === s);
 
   const moveTask = (id: string, newStatus: TaskStatus) => {
     setTaskList(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+  };
+
+  const updateTask = (updated: Task) => {
+    setTaskList(prev => prev.map(t => t.id === updated.id ? updated : t));
+    setSelectedTask(null);
+  };
+
+  const addTask = (task: Task) => {
+    setTaskList(prev => [task, ...prev]);
   };
 
   return (
@@ -52,7 +66,10 @@ export default function TasksPage() {
               </button>
             ))}
           </div>
-          <button className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors">
+          <button
+            onClick={() => { setAddStatus('todo'); setShowAdd(true); }}
+            className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+          >
             <Icon name="Plus" size={15} />
             Задача
           </button>
@@ -74,9 +91,18 @@ export default function TasksPage() {
 
               <div className="flex-1 space-y-2.5 overflow-y-auto scrollbar-thin pr-0.5">
                 {byStatus(col.key).map((task, i) => (
-                  <TaskCard key={task.id} task={task} index={i} onMove={moveTask} />
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    index={i}
+                    onMove={moveTask}
+                    onClick={() => setSelectedTask(task)}
+                  />
                 ))}
-                <button className="w-full py-2 border border-dashed rounded-xl text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors flex items-center justify-center gap-1.5">
+                <button
+                  onClick={() => { setAddStatus(col.key); setShowAdd(true); }}
+                  className="w-full py-2 border border-dashed rounded-xl text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors flex items-center justify-center gap-1.5"
+                >
                   <Icon name="Plus" size={12} />
                   Добавить
                 </button>
@@ -85,11 +111,32 @@ export default function TasksPage() {
           ))}
         </div>
       </div>
+
+      {selectedTask && (
+        <TaskModal
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={updateTask}
+        />
+      )}
+
+      {showAdd && (
+        <AddTaskModal
+          defaultStatus={addStatus}
+          onClose={() => setShowAdd(false)}
+          onAdd={addTask}
+        />
+      )}
     </div>
   );
 }
 
-function TaskCard({ task, index, onMove }: { task: Task; index: number; onMove: (id: string, s: TaskStatus) => void }) {
+function TaskCard({ task, index, onMove, onClick }: {
+  task: Task;
+  index: number;
+  onMove: (id: string, s: TaskStatus) => void;
+  onClick: () => void;
+}) {
   const statuses: TaskStatus[] = ['todo', 'in_progress', 'done'];
   const currentIdx = statuses.indexOf(task.status);
 
@@ -97,6 +144,7 @@ function TaskCard({ task, index, onMove }: { task: Task; index: number; onMove: 
     <div
       className="bg-white border rounded-xl p-3.5 shadow-sm hover:shadow-md cursor-pointer transition-all hover:-translate-y-0.5 animate-slide-up group"
       style={{ animationDelay: `${index * 40}ms` }}
+      onClick={onClick}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -150,7 +198,7 @@ function TaskCard({ task, index, onMove }: { task: Task; index: number; onMove: 
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-1">
+      <div className="mt-2">
         <span className="text-[10px] text-muted-foreground">{task.relatedTo}</span>
       </div>
     </div>

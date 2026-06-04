@@ -1,16 +1,35 @@
 import { useState } from 'react';
-import { deals, dealStages, type Deal, type DealStage } from './data';
+import { deals as initialDeals, dealStages, type Deal, type DealStage } from './data';
 import Icon from '@/components/ui/icon';
+import DealModal from './DealModal';
+import AddDealModal from './AddDealModal';
 
 const formatAmount = (n: number) =>
   new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(n);
 
 export default function DealsPage() {
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
+  const [dealList, setDealList] = useState<Deal[]>(initialDeals);
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addStage, setAddStage] = useState<DealStage>('new');
 
-  const dealsByStage = (stage: DealStage) => deals.filter(d => d.stage === stage);
-  const stageTotal = (stage: DealStage) =>
-    dealsByStage(stage).reduce((s, d) => s + d.amount, 0);
+  const dealsByStage = (stage: DealStage) => dealList.filter(d => d.stage === stage);
+  const stageTotal = (stage: DealStage) => dealsByStage(stage).reduce((s, d) => s + d.amount, 0);
+
+  const updateDeal = (updated: Deal) => {
+    setDealList(prev => prev.map(d => d.id === updated.id ? updated : d));
+    setSelectedDeal(null);
+  };
+
+  const addDeal = (deal: Deal) => {
+    setDealList(prev => [deal, ...prev]);
+  };
+
+  const openAddForStage = (stage: DealStage) => {
+    setAddStage(stage);
+    setShowAdd(true);
+  };
 
   return (
     <div className="flex flex-col h-full animate-fade-in">
@@ -18,7 +37,7 @@ export default function DealsPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">Сделки</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {deals.length} сделок · {formatAmount(deals.reduce((s, d) => s + d.amount, 0))} общий объём
+            {dealList.length} сделок · {formatAmount(dealList.reduce((s, d) => s + d.amount, 0))} общий объём
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -38,7 +57,10 @@ export default function DealsPage() {
               Список
             </button>
           </div>
-          <button className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors">
+          <button
+            onClick={() => { setAddStage('new'); setShowAdd(true); }}
+            className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+          >
             <Icon name="Plus" size={15} />
             Сделка
           </button>
@@ -64,9 +86,12 @@ export default function DealsPage() {
 
                 <div className="flex-1 space-y-2.5 overflow-y-auto scrollbar-thin pr-0.5">
                   {dealsByStage(stage.key).map((deal, i) => (
-                    <DealCard key={deal.id} deal={deal} index={i} />
+                    <DealCard key={deal.id} deal={deal} index={i} onClick={() => setSelectedDeal(deal)} />
                   ))}
-                  <button className="w-full py-2 border border-dashed rounded-lg text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors flex items-center justify-center gap-1.5">
+                  <button
+                    onClick={() => openAddForStage(stage.key)}
+                    className="w-full py-2 border border-dashed rounded-lg text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors flex items-center justify-center gap-1.5"
+                  >
                     <Icon name="Plus" size={12} />
                     Добавить
                   </button>
@@ -90,10 +115,14 @@ export default function DealsPage() {
               </tr>
             </thead>
             <tbody>
-              {deals.map((deal) => {
+              {dealList.map((deal) => {
                 const stage = dealStages.find(s => s.key === deal.stage)!;
                 return (
-                  <tr key={deal.id} className="border-b bg-white hover:bg-accent/20 cursor-pointer transition-colors">
+                  <tr
+                    key={deal.id}
+                    className="border-b bg-white hover:bg-accent/20 cursor-pointer transition-colors"
+                    onClick={() => setSelectedDeal(deal)}
+                  >
                     <td className="px-6 py-3.5">
                       <p className="text-sm font-medium text-foreground">{deal.title}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{deal.contact}</p>
@@ -108,10 +137,7 @@ export default function DealsPage() {
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden w-16">
-                          <div
-                            className="h-full bg-primary rounded-full"
-                            style={{ width: `${deal.probability}%` }}
-                          />
+                          <div className="h-full bg-primary rounded-full" style={{ width: `${deal.probability}%` }} />
                         </div>
                         <span className="text-xs text-muted-foreground">{deal.probability}%</span>
                       </div>
@@ -134,16 +160,33 @@ export default function DealsPage() {
           </table>
         </div>
       )}
+
+      {selectedDeal && (
+        <DealModal
+          deal={selectedDeal}
+          onClose={() => setSelectedDeal(null)}
+          onUpdate={updateDeal}
+        />
+      )}
+
+      {showAdd && (
+        <AddDealModal
+          defaultStage={addStage}
+          onClose={() => setShowAdd(false)}
+          onAdd={addDeal}
+        />
+      )}
     </div>
   );
 }
 
-function DealCard({ deal, index }: { deal: Deal; index: number }) {
+function DealCard({ deal, index, onClick }: { deal: Deal; index: number; onClick: () => void }) {
   const stage = dealStages.find(s => s.key === deal.stage)!;
   return (
     <div
       className="bg-white border rounded-xl p-3.5 shadow-sm hover:shadow-md cursor-pointer transition-all hover:-translate-y-0.5 animate-slide-up"
       style={{ animationDelay: `${index * 40}ms` }}
+      onClick={onClick}
     >
       <p className="text-sm font-medium text-foreground leading-snug">{deal.title}</p>
       <p className="text-xs text-muted-foreground mt-1">{deal.company}</p>
